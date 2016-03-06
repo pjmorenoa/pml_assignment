@@ -1,0 +1,162 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Patricio Moreno"
+date: "March 06, 2016"
+output: html_document
+---
+
+Practical machine learning course project.
+
+##Introduction
+
+In this project, we are going to use data collected from the **Weight Lifting Exercises Dataset**, from **Groupware@LES**.(http://groupware.les.inf.puc-rio.br/)). They collect information from accelerometers on different parts of the body when the subject is doing the exercise (*Quantified self movement*)
+
+The researchers describe the experiment as follows:  
+*Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions:   
+- Exactly according to the specification (Class A)   
+- Throwing the elbows to the front (Class B)  
+- Lifting the dumbbell only halfway (Class C)  
+- Lowering the dumbbell only halfway (Class D)  
+- Throwing the hips to the front (Class E)  *
+
+In this assignment, we are going to build a model to predict the manner in which an exercise was done, based on the data collected from the accelerometer devices.  
+
+See the project [website](http://groupware.les.inf.puc-rio.br/har#weight_lifting_exercises)
+
+##Starting and Preprocessing
+
+To begin the analysis, we must load the packages that we will use.
+
+```{r results='hide', message=FALSE}
+pkgs <- c("data.table","plyr","caret", "randomForest",
+          "foreach","doParallel","knitr")
+sapply(pkgs, require, character.only=TRUE, quietly=TRUE)
+
+```
+
+For this assignment, we are going to use `doParallel` to allow R to use multicore parallel processing and make computations expedite.  
+Also, we are going to set the seed.
+```{r}
+registerDoParallel(cores=4)
+set.seed(7)
+```
+
+Now, we need to download and then read the datasets given in the assignment (training and testing).
+
+```{r }
+urlTra <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+urlTes <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+if (!"pml-training.csv" %in% dir(getwd())) {
+        download.file(urlTra, destfile = "pml-training.csv")
+}
+if (!"pml-testing.csv" %in% dir(getwd())) {
+        download.file(urlTes, destfile = "pml-testing.csv")
+}
+```
+
+```{r}
+training <- read.csv("pml-training.csv", na.strings=c("#DIV/0!"," ", "", "NA", "NAs", "NULL"))
+testing <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!"," ", "", "NA", "NAs", "NULL"))
+
+```
+
+Now we have loaded the dataset.
+
+```{r}
+str(training)
+```
+
+##Processing the datasets
+
+As we can see, there are 19622 observations of 160 variables. There are lots of `NA` values, and there are some variables that are useless for the analysis (for example, `user_names` and all of the timestamps), we must remove them before the modeling.
+
+```{r cache=TRUE}
+
+tr2 <- training[, -which(names(training) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window"))]
+
+tr2 = tr2[, colSums(is.na(tr2)) == 0]
+```
+
+Now we have to check for, and remove if there are, Near Zero variance predictors.
+```{r cache=TRUE}
+zv = nearZeroVar(tr2,saveMetrics=TRUE)
+tr2 = tr2[, zv[, 'nzv'] == 0] 
+```
+
+Coerce all of the observations to `numeric`. 
+```{r cache=TRUE}
+for(i in c(2:ncol(tr2)-1)) {
+     tr2[,i] = as.numeric(tr2[,i])
+}
+```
+
+Now we have a tiny dataset to work on the models.
+```{r}
+str(tr2)
+```
+
+
+##Modeling
+
+First, we need to partition the data in `tr2` to generate a Training and a Testing group for the modeling process.
+```{r}
+x <- createDataPartition(tr2$classe, p=0.6, list=FALSE)
+
+mtraining <- tr2[x,]
+
+mtesting <- tr2[-x,]
+
+rbind("Original dataset"=dim(tr2),
+        "Training set"=dim(mtraining),
+        "Testing set" = dim(mtesting))
+```
+
+###Random Forest
+
+Now we are going to build a model using Random Forest algorithm. In this case, we also use a 5 fold cross validation.
+```{r cache=TRUE}
+mcontrol <- trainControl(method="cv", 5)
+
+modelTr <- train(classe ~ ., data=mtraining, method="rf",
+               trControl=mcontrol, ntree=250)
+modelTr
+
+predictTr <- predict(modelTr, mtesting)
+confusionMatrix(mtesting$classe, predictTr)
+
+accuracyTr <- postResample(predictTr, mtesting$classe)
+accuracyTr
+```
+As we can see, the accuracy for this model is around 99.3%.
+
+###General Boosted Regression  
+
+Now we are going to train a General Boosted Regression (GBM) model (just to try another model). Same as previous model, we are using a 5 fold cross validation.
+```{r cache=TRUE, message=FALSE}
+mcontrolB <- trainControl(method="cv", 5)
+
+modelB <- train(classe ~ ., data=mtraining,
+                method="gbm", trControl=mcontrolB)
+modelB
+
+predictB <- predict(modelB, mtesting)
+confusionMatrix(mtesting$classe, predictB)
+
+accuracyB <- postResample(predictB, mtesting$classe)
+accuracyB
+```
+The accuracy of this model is 96.0%, it is still a good model for this dataset.
+
+
+
+##Quiz answers
+
+Predictions for the given testing dataset, using the Random Forest model.
+
+```{r cache=TRUE}
+answers <- predict(modelTr, testing, predict.all=TRUE)
+a <- cbind("Question"=c(1:20),"Answer"=as.character(answers))
+as.data.frame(a)
+```
+
