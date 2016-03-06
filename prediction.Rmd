@@ -34,14 +34,13 @@ sapply(pkgs, require, character.only=TRUE, quietly=TRUE)
 
 ```
 
-For this assignment, we are going to use `doParallel` to allow R to use multicore parallel processing and make computations expedite.  
-Also, we are going to set the seed.
+Using `doParallel` to allow multicore parallel processing. And setting the seed.
 ```{r}
 registerDoParallel(cores=4)
 set.seed(7)
 ```
 
-Now, we need to download and then read the datasets given in the assignment (training and testing).
+Download and read the datasets given in the assignment (training and testing).
 
 ```{r }
 urlTra <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
@@ -58,42 +57,36 @@ if (!"pml-testing.csv" %in% dir(getwd())) {
 ```{r}
 training <- read.csv("pml-training.csv", na.strings=c("#DIV/0!"," ", "", "NA", "NAs", "NULL"))
 testing <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!"," ", "", "NA", "NAs", "NULL"))
-
 ```
 
-Now we have loaded the dataset.
+The dataset is loaded. The last column, `classe` is the manner in which the exercise has been done. 
 
-```{r}
-str(training)
-```
 
 ##Processing the datasets
 
 As we can see, there are 19622 observations of 160 variables. There are lots of `NA` values, and there are some variables that are useless for the analysis (for example, `user_names` and all of the timestamps), we must remove them before the modeling.
 
 ```{r cache=TRUE}
-
 tr2 <- training[, -which(names(training) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window"))]
-
 tr2 = tr2[, colSums(is.na(tr2)) == 0]
 ```
 
 Now we have to check for, and remove if there are, Near Zero variance predictors.
 ```{r cache=TRUE}
-zv = nearZeroVar(tr2,saveMetrics=TRUE)
+zv = nearZeroVar(tr2,saveMetrics=TRUE); zv
 tr2 = tr2[, zv[, 'nzv'] == 0] 
 ```
+There are no `TRUE`on the report, so, there are no variables to remove for this reason.
 
-Coerce all of the observations to `numeric`. 
-```{r cache=TRUE}
+```{r cache=TRUE, echo=FALSE}
 for(i in c(2:ncol(tr2)-1)) {
      tr2[,i] = as.numeric(tr2[,i])
 }
 ```
 
 Now we have a tiny dataset to work on the models.
-```{r}
-str(tr2)
+```{r eval=FALSE}
+str(tr2) #Not shown
 ```
 
 
@@ -102,9 +95,7 @@ str(tr2)
 First, we need to partition the data in `tr2` to generate a Training and a Testing group for the modeling process.
 ```{r}
 x <- createDataPartition(tr2$classe, p=0.6, list=FALSE)
-
 mtraining <- tr2[x,]
-
 mtesting <- tr2[-x,]
 
 rbind("Original dataset"=dim(tr2),
@@ -123,7 +114,7 @@ modelTr <- train(classe ~ ., data=mtraining, method="rf",
 modelTr
 
 predictTr <- predict(modelTr, mtesting)
-confusionMatrix(mtesting$classe, predictTr)
+c <- confusionMatrix(mtesting$classe, predictTr)
 
 accuracyTr <- postResample(predictTr, mtesting$classe)
 accuracyTr
@@ -137,17 +128,17 @@ Now we are going to train a General Boosted Regression (GBM) model (just to try 
 mcontrolB <- trainControl(method="cv", 5)
 
 modelB <- train(classe ~ ., data=mtraining,
-                method="gbm", trControl=mcontrolB)
+                method="gbm", trControl=mcontrolB, 
+                verbose=FALSE)
 modelB
 
 predictB <- predict(modelB, mtesting)
-confusionMatrix(mtesting$classe, predictB)
+c2 <- confusionMatrix(mtesting$classe, predictB)
 
 accuracyB <- postResample(predictB, mtesting$classe)
 accuracyB
 ```
 The accuracy of this model is 96.0%, it is still a good model for this dataset.
-
 
 
 ##Quiz answers
