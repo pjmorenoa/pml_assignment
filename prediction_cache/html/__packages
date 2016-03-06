@@ -1,0 +1,13 @@
+base
+data.table
+plyr
+lattice
+ggplot2
+caret
+randomForest
+foreach
+iterators
+doParallel
+knitr
+survival
+gbm
