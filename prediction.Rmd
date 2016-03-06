@@ -128,7 +128,8 @@ Now we are going to train a General Boosted Regression (GBM) model (just to try 
 mcontrolB <- trainControl(method="cv", 5)
 
 modelB <- train(classe ~ ., data=mtraining,
-                method="gbm", trControl=mcontrolB)
+                method="gbm", trControl=mcontrolB, 
+                verbose=FALSE)
 modelB
 
 predictB <- predict(modelB, mtesting)
