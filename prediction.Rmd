@@ -5,11 +5,9 @@ date: "March 06, 2016"
 output: html_document
 ---
 
-Practical machine learning course project.
-
 ##Introduction
 
-In this project, we are going to use data collected from the **Weight Lifting Exercises Dataset**, from **Groupware@LES**.(http://groupware.les.inf.puc-rio.br/)). They collect information from accelerometers on different parts of the body when the subject is doing the exercise (*Quantified self movement*)
+In this project, we are going to use data collected from the **Weight Lifting Exercises Dataset**, from **Groupware-LES**.(http://groupware.les.inf.puc-rio.br/). They collect information from accelerometers on different parts of the body when the subject is doing the exercise (*Quantified self movement*)
 
 The researchers describe the experiment as follows:  
 *Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions:   
@@ -28,8 +26,8 @@ See the project [website](http://groupware.les.inf.puc-rio.br/har#weight_lifting
 To begin the analysis, we must load the packages that we will use.
 
 ```{r results='hide', message=FALSE}
-pkgs <- c("data.table","plyr","caret", "randomForest",
-          "foreach","doParallel","knitr")
+pkgs <- c("data.table","plyr","caret","randomForest",
+          "gbm","rpart","foreach","doParallel","knitr")
 sapply(pkgs, require, character.only=TRUE, quietly=TRUE)
 
 ```
@@ -74,7 +72,6 @@ tr2 = tr2[, colSums(is.na(tr2)) == 0]
 Now we have to check for, and remove if there are, Near Zero variance predictors.
 ```{r cache=TRUE}
 zv = nearZeroVar(tr2,saveMetrics=TRUE); zv
-tr2 = tr2[, zv[, 'nzv'] == 0] 
 ```
 There are no `TRUE`on the report, so, there are no variables to remove for this reason.
 
@@ -84,11 +81,10 @@ for(i in c(2:ncol(tr2)-1)) {
 }
 ```
 
-Now we have a tiny dataset to work on the models.
-```{r eval=FALSE}
-str(tr2) #Not shown
+These are the variables that we will use for the modeling.
+```{r eval=TRUE}
+colnames(tr2)
 ```
-
 
 ##Modeling
 
@@ -103,27 +99,41 @@ rbind("Original dataset"=dim(tr2),
         "Testing set" = dim(mtesting))
 ```
 
+###Trees
+
+The first algorithm that we will use in this report is Prediction with Trees (using `rpart` package), using a 5 fold cross validation to prevent overfitting.
+```{r cache=TRUE}
+mtcontrol <- trainControl(method="cv",5)
+
+modelT <-  train(classe ~ ., data=mtraining,
+                 method="rpart", trControl=mtcontrol)
+modelT
+
+predictT <- predict(modelT, mtesting)
+confusionMatrix(mtesting$classe, predictT)
+
+```
+It shows an accurracy around 50%, which is very low for prediction purposes.
+
 ###Random Forest
 
-Now we are going to build a model using Random Forest algorithm. In this case, we also use a 5 fold cross validation.
+Now we are going to build a model using Random Forest algorithm. Again, we use a 5 fold cross validation to prevent overfitting.
 ```{r cache=TRUE}
 mcontrol <- trainControl(method="cv", 5)
 
 modelTr <- train(classe ~ ., data=mtraining, method="rf",
-               trControl=mcontrol, ntree=250)
+               trControl=mcontrol, ntree=500)
 modelTr
 
 predictTr <- predict(modelTr, mtesting)
-c <- confusionMatrix(mtesting$classe, predictTr)
+confusionMatrix(mtesting$classe, predictTr)
 
-accuracyTr <- postResample(predictTr, mtesting$classe)
-accuracyTr
 ```
-As we can see, the accuracy for this model is around 99.3%.
+As we can see, the accuracy for this model is around 99%, very good and precise for making predictions.
 
-###General Boosted Regression  
+###General Boosted Regression model
 
-Now we are going to train a General Boosted Regression (GBM) model (just to try another model). Same as previous model, we are using a 5 fold cross validation.
+Now we are going to train a General Boosted Regression (GBM) model (just to try another model). Same as previous model, we are using a 5 fold cross validation to prevent overfitting. 
 ```{r cache=TRUE, message=FALSE}
 mcontrolB <- trainControl(method="cv", 5)
 
@@ -133,12 +143,11 @@ modelB <- train(classe ~ ., data=mtraining,
 modelB
 
 predictB <- predict(modelB, mtesting)
-c2 <- confusionMatrix(mtesting$classe, predictB)
+confusionMatrix(mtesting$classe, predictB)
 
-accuracyB <- postResample(predictB, mtesting$classe)
-accuracyB
 ```
-The accuracy of this model is 96.0%, it is still a good model for this dataset.
+The accuracy of this model is 96%, which is very good for a prediction model, but not as Random Forest (in this assignment).
+
 
 
 ##Quiz answers
@@ -147,7 +156,11 @@ Predictions for the given testing dataset, using the Random Forest model.
 
 ```{r cache=TRUE}
 answers <- predict(modelTr, testing, predict.all=TRUE)
+```
+
+```{r echo=FALSE}
 a <- cbind("Question"=c(1:20),"Answer"=as.character(answers))
 as.data.frame(a)
 ```
+
 
