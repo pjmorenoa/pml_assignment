@@ -1,7 +1,0 @@
-name: Publish Document
-account: rpubs
-server: rpubs.com
-bundleId:
-        https://api.rpubs.com/api/v1/document/158938/e7ff095f0d6a442dbb8844804b466d3f
-url: http://rpubs.com/pjmorenoa/158938
-when: 1457312696.15183

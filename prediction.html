@@ -116,10 +116,9 @@ $(document).ready(function () {
 </div>
 
 
-<p>Practical machine learning course project.</p>
 <div id="introduction" class="section level2">
 <h2>Introduction</h2>
-<p>In this project, we are going to use data collected from the <strong>Weight Lifting Exercises Dataset</strong>, from <a href="mailto:**Groupware@LES**">**Groupware@LES**</a>.(<a href="http://groupware.les.inf.puc-rio.br/" class="uri">http://groupware.les.inf.puc-rio.br/</a>)). They collect information from accelerometers on different parts of the body when the subject is doing the exercise (<em>Quantified self movement</em>)</p>
+<p>In this project, we are going to use data collected from the <strong>Weight Lifting Exercises Dataset</strong>, from <strong>Groupware-LES</strong>.(<a href="http://groupware.les.inf.puc-rio.br/" class="uri">http://groupware.les.inf.puc-rio.br/</a>). They collect information from accelerometers on different parts of the body when the subject is doing the exercise (<em>Quantified self movement</em>)</p>
 <p>The researchers describe the experiment as follows:<br /><em>Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions:<br />- Exactly according to the specification (Class A)<br />- Throwing the elbows to the front (Class B)<br />- Lifting the dumbbell only halfway (Class C)<br />- Lowering the dumbbell only halfway (Class D)<br />- Throwing the hips to the front (Class E) </em></p>
 <p>In this assignment, we are going to build a model to predict the manner in which an exercise was done, based on the data collected from the accelerometer devices.</p>
 <p>See the project <a href="http://groupware.les.inf.puc-rio.br/har#weight_lifting_exercises">website</a></p>
@@ -127,8 +126,8 @@ $(document).ready(function () {
 <div id="starting-and-preprocessing" class="section level2">
 <h2>Starting and Preprocessing</h2>
 <p>To begin the analysis, we must load the packages that we will use.</p>
-<pre class="r"><code>pkgs &lt;- c(&quot;data.table&quot;,&quot;plyr&quot;,&quot;caret&quot;, &quot;randomForest&quot;,
-          &quot;foreach&quot;,&quot;doParallel&quot;,&quot;knitr&quot;)
+<pre class="r"><code>pkgs &lt;- c(&quot;data.table&quot;,&quot;plyr&quot;,&quot;caret&quot;,&quot;randomForest&quot;,
+          &quot;gbm&quot;,&quot;rpart&quot;,&quot;foreach&quot;,&quot;doParallel&quot;,&quot;knitr&quot;)
 sapply(pkgs, require, character.only=TRUE, quietly=TRUE)</code></pre>
 <p>Using <code>doParallel</code> to allow multicore parallel processing. And setting the seed.</p>
 <pre class="r"><code>registerDoParallel(cores=4)
@@ -153,14 +152,82 @@ testing &lt;- read.csv(&quot;pml-testing.csv&quot;, na.strings=c(&quot;#DIV/0!&q
 <pre class="r"><code>tr2 &lt;- training[, -which(names(training) %in% c(&quot;X&quot;, &quot;user_name&quot;, &quot;raw_timestamp_part_1&quot;, &quot;raw_timestamp_part_2&quot;, &quot;cvtd_timestamp&quot;, &quot;new_window&quot;, &quot;num_window&quot;))]
 tr2 = tr2[, colSums(is.na(tr2)) == 0]</code></pre>
 <p>Now we have to check for, and remove if there are, Near Zero variance predictors.</p>
-<pre class="r"><code>zv = nearZeroVar(tr2,saveMetrics=TRUE)
-tr2 = tr2[, zv[, 'nzv'] == 0] </code></pre>
-<p>Coerce all of the observations to <code>numeric</code>.</p>
-<pre class="r"><code>for(i in c(2:ncol(tr2)-1)) {
-     tr2[,i] = as.numeric(tr2[,i])
-}</code></pre>
-<p>Now we have a tiny dataset to work on the models.</p>
-<pre class="r"><code>str(tr2) #Not shown</code></pre>
+<pre class="r"><code>zv = nearZeroVar(tr2,saveMetrics=TRUE); zv</code></pre>
+<pre><code>##                      freqRatio percentUnique zeroVar   nzv
+## roll_belt             1.101904     6.7781062   FALSE FALSE
+## pitch_belt            1.036082     9.3772296   FALSE FALSE
+## yaw_belt              1.058480     9.9734991   FALSE FALSE
+## total_accel_belt      1.063160     0.1477933   FALSE FALSE
+## gyros_belt_x          1.058651     0.7134849   FALSE FALSE
+## gyros_belt_y          1.144000     0.3516461   FALSE FALSE
+## gyros_belt_z          1.066214     0.8612782   FALSE FALSE
+## accel_belt_x          1.055412     0.8357966   FALSE FALSE
+## accel_belt_y          1.113725     0.7287738   FALSE FALSE
+## accel_belt_z          1.078767     1.5237998   FALSE FALSE
+## magnet_belt_x         1.090141     1.6664968   FALSE FALSE
+## magnet_belt_y         1.099688     1.5187035   FALSE FALSE
+## magnet_belt_z         1.006369     2.3290184   FALSE FALSE
+## roll_arm             52.338462    13.5256345   FALSE FALSE
+## pitch_arm            87.256410    15.7323412   FALSE FALSE
+## yaw_arm              33.029126    14.6570176   FALSE FALSE
+## total_accel_arm       1.024526     0.3363572   FALSE FALSE
+## gyros_arm_x           1.015504     3.2769341   FALSE FALSE
+## gyros_arm_y           1.454369     1.9162165   FALSE FALSE
+## gyros_arm_z           1.110687     1.2638875   FALSE FALSE
+## accel_arm_x           1.017341     3.9598410   FALSE FALSE
+## accel_arm_y           1.140187     2.7367241   FALSE FALSE
+## accel_arm_z           1.128000     4.0362858   FALSE FALSE
+## magnet_arm_x          1.000000     6.8239731   FALSE FALSE
+## magnet_arm_y          1.056818     4.4439914   FALSE FALSE
+## magnet_arm_z          1.036364     6.4468454   FALSE FALSE
+## roll_dumbbell         1.022388    84.2065029   FALSE FALSE
+## pitch_dumbbell        2.277372    81.7449801   FALSE FALSE
+## yaw_dumbbell          1.132231    83.4828254   FALSE FALSE
+## total_accel_dumbbell  1.072634     0.2191418   FALSE FALSE
+## gyros_dumbbell_x      1.003268     1.2282132   FALSE FALSE
+## gyros_dumbbell_y      1.264957     1.4167771   FALSE FALSE
+## gyros_dumbbell_z      1.060100     1.0498420   FALSE FALSE
+## accel_dumbbell_x      1.018018     2.1659362   FALSE FALSE
+## accel_dumbbell_y      1.053061     2.3748853   FALSE FALSE
+## accel_dumbbell_z      1.133333     2.0894914   FALSE FALSE
+## magnet_dumbbell_x     1.098266     5.7486495   FALSE FALSE
+## magnet_dumbbell_y     1.197740     4.3012945   FALSE FALSE
+## magnet_dumbbell_z     1.020833     3.4451126   FALSE FALSE
+## roll_forearm         11.589286    11.0895933   FALSE FALSE
+## pitch_forearm        65.983051    14.8557741   FALSE FALSE
+## yaw_forearm          15.322835    10.1467740   FALSE FALSE
+## total_accel_forearm   1.128928     0.3567424   FALSE FALSE
+## gyros_forearm_x       1.059273     1.5187035   FALSE FALSE
+## gyros_forearm_y       1.036554     3.7763735   FALSE FALSE
+## gyros_forearm_z       1.122917     1.5645704   FALSE FALSE
+## accel_forearm_x       1.126437     4.0464784   FALSE FALSE
+## accel_forearm_y       1.059406     5.1116094   FALSE FALSE
+## accel_forearm_z       1.006250     2.9558659   FALSE FALSE
+## magnet_forearm_x      1.012346     7.7667924   FALSE FALSE
+## magnet_forearm_y      1.246914     9.5403119   FALSE FALSE
+## magnet_forearm_z      1.000000     8.5771073   FALSE FALSE
+## classe                1.469581     0.0254816   FALSE FALSE</code></pre>
+<p>There are no <code>TRUE</code>on the report, so, there are no variables to remove for this reason.</p>
+<p>These are the variables that we will use for the modeling.</p>
+<pre class="r"><code>colnames(tr2)</code></pre>
+<pre><code>##  [1] &quot;roll_belt&quot;            &quot;pitch_belt&quot;           &quot;yaw_belt&quot;            
+##  [4] &quot;total_accel_belt&quot;     &quot;gyros_belt_x&quot;         &quot;gyros_belt_y&quot;        
+##  [7] &quot;gyros_belt_z&quot;         &quot;accel_belt_x&quot;         &quot;accel_belt_y&quot;        
+## [10] &quot;accel_belt_z&quot;         &quot;magnet_belt_x&quot;        &quot;magnet_belt_y&quot;       
+## [13] &quot;magnet_belt_z&quot;        &quot;roll_arm&quot;             &quot;pitch_arm&quot;           
+## [16] &quot;yaw_arm&quot;              &quot;total_accel_arm&quot;      &quot;gyros_arm_x&quot;         
+## [19] &quot;gyros_arm_y&quot;          &quot;gyros_arm_z&quot;          &quot;accel_arm_x&quot;         
+## [22] &quot;accel_arm_y&quot;          &quot;accel_arm_z&quot;          &quot;magnet_arm_x&quot;        
+## [25] &quot;magnet_arm_y&quot;         &quot;magnet_arm_z&quot;         &quot;roll_dumbbell&quot;       
+## [28] &quot;pitch_dumbbell&quot;       &quot;yaw_dumbbell&quot;         &quot;total_accel_dumbbell&quot;
+## [31] &quot;gyros_dumbbell_x&quot;     &quot;gyros_dumbbell_y&quot;     &quot;gyros_dumbbell_z&quot;    
+## [34] &quot;accel_dumbbell_x&quot;     &quot;accel_dumbbell_y&quot;     &quot;accel_dumbbell_z&quot;    
+## [37] &quot;magnet_dumbbell_x&quot;    &quot;magnet_dumbbell_y&quot;    &quot;magnet_dumbbell_z&quot;   
+## [40] &quot;roll_forearm&quot;         &quot;pitch_forearm&quot;        &quot;yaw_forearm&quot;         
+## [43] &quot;total_accel_forearm&quot;  &quot;gyros_forearm_x&quot;      &quot;gyros_forearm_y&quot;     
+## [46] &quot;gyros_forearm_z&quot;      &quot;accel_forearm_x&quot;      &quot;accel_forearm_y&quot;     
+## [49] &quot;accel_forearm_z&quot;      &quot;magnet_forearm_x&quot;     &quot;magnet_forearm_y&quot;    
+## [52] &quot;magnet_forearm_z&quot;     &quot;classe&quot;</code></pre>
 </div>
 <div id="modeling" class="section level2">
 <h2>Modeling</h2>
@@ -176,15 +243,15 @@ rbind(&quot;Original dataset&quot;=dim(tr2),
 ## Original dataset 19622   53
 ## Training set     11776   53
 ## Testing set       7846   53</code></pre>
-<div id="random-forest" class="section level3">
-<h3>Random Forest</h3>
-<p>Now we are going to build a model using Random Forest algorithm. In this case, we also use a 5 fold cross validation.</p>
-<pre class="r"><code>mcontrol &lt;- trainControl(method=&quot;cv&quot;, 5)
+<div id="trees" class="section level3">
+<h3>Trees</h3>
+<p>The first algorithm that we will use in this report is Prediction with Trees (using <code>rpart</code> package), using a 5 fold cross validation to prevent overfitting.</p>
+<pre class="r"><code>mtcontrol &lt;- trainControl(method=&quot;cv&quot;,5)
 
-modelTr &lt;- train(classe ~ ., data=mtraining, method=&quot;rf&quot;,
-               trControl=mcontrol, ntree=250)
-modelTr</code></pre>
-<pre><code>## Random Forest 
+modelT &lt;-  train(classe ~ ., data=mtraining,
+                 method=&quot;rpart&quot;, trControl=mtcontrol)
+modelT</code></pre>
+<pre><code>## CART 
 ## 
 ## 11776 samples
 ##    52 predictor
@@ -195,25 +262,112 @@ modelTr</code></pre>
 ## Summary of sample sizes: 9420, 9421, 9421, 9421, 9421 
 ## Resampling results across tuning parameters:
 ## 
-##   mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
-##    2    0.9887058  0.9857108  0.001982762  0.002511628
-##   27    0.9892151  0.9863567  0.002541687  0.003217485
-##   52    0.9831859  0.9787282  0.002795837  0.003540911
+##   cp          Accuracy   Kappa       Accuracy SD  Kappa SD  
+##   0.03512103  0.5090863  0.35913411  0.01226879   0.01572523
+##   0.06007752  0.4431010  0.25386842  0.06903376   0.11615766
+##   0.11746559  0.3000116  0.02411767  0.03515810   0.05392876
 ## 
 ## Accuracy was used to select the optimal model using  the largest value.
-## The final value used for the model was mtry = 27.</code></pre>
-<pre class="r"><code>predictTr &lt;- predict(modelTr, mtesting)
-c &lt;- confusionMatrix(mtesting$classe, predictTr)
-
-accuracyTr &lt;- postResample(predictTr, mtesting$classe)
-accuracyTr</code></pre>
-<pre><code>##  Accuracy     Kappa 
-## 0.9936273 0.9919383</code></pre>
-<p>As we can see, the accuracy for this model is around 99.3%.</p>
+## The final value used for the model was cp = 0.03512103.</code></pre>
+<pre class="r"><code>predictT &lt;- predict(modelT, mtesting)
+confusionMatrix(mtesting$classe, predictT)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2002   36  160    0   34
+##          B  612  513  393    0    0
+##          C  644   40  684    0    0
+##          D  585  217  484    0    0
+##          E  198  174  401    0  669
+## 
+## Overall Statistics
+##                                           
+##                Accuracy : 0.493           
+##                  95% CI : (0.4819, 0.5041)
+##     No Information Rate : 0.515           
+##     P-Value [Acc &gt; NIR] : 1               
+##                                           
+##                   Kappa : 0.3378          
+##  Mcnemar's Test P-Value : NA              
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.4954  0.52347  0.32234       NA  0.95164
+## Specificity            0.9396  0.85363  0.88050   0.8361  0.89178
+## Pos Pred Value         0.8970  0.33794  0.50000       NA  0.46394
+## Neg Pred Value         0.6368  0.92620  0.77802       NA  0.99469
+## Prevalence             0.5150  0.12490  0.27046   0.0000  0.08960
+## Detection Rate         0.2552  0.06538  0.08718   0.0000  0.08527
+## Detection Prevalence   0.2845  0.19347  0.17436   0.1639  0.18379
+## Balanced Accuracy      0.7175  0.68855  0.60142       NA  0.92171</code></pre>
+<p>It shows an accurracy around 50%, which is very low for prediction purposes.</p>
 </div>
-<div id="general-boosted-regression" class="section level3">
-<h3>General Boosted Regression</h3>
-<p>Now we are going to train a General Boosted Regression (GBM) model (just to try another model). Same as previous model, we are using a 5 fold cross validation.</p>
+<div id="random-forest" class="section level3">
+<h3>Random Forest</h3>
+<p>Now we are going to build a model using Random Forest algorithm. Again, we use a 5 fold cross validation to prevent overfitting.</p>
+<pre class="r"><code>mcontrol &lt;- trainControl(method=&quot;cv&quot;, 5)
+
+modelTr &lt;- train(classe ~ ., data=mtraining, method=&quot;rf&quot;,
+               trControl=mcontrol, ntree=500)
+modelTr</code></pre>
+<pre><code>## Random Forest 
+## 
+## 11776 samples
+##    52 predictor
+##     5 classes: 'A', 'B', 'C', 'D', 'E' 
+## 
+## No pre-processing
+## Resampling: Cross-Validated (5 fold) 
+## Summary of sample sizes: 9422, 9420, 9421, 9420, 9421 
+## Resampling results across tuning parameters:
+## 
+##   mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
+##    2    0.9876868  0.9844216  0.003192196  0.004040530
+##   27    0.9876020  0.9843153  0.003964802  0.005016785
+##   52    0.9825070  0.9778691  0.004634172  0.005866924
+## 
+## Accuracy was used to select the optimal model using  the largest value.
+## The final value used for the model was mtry = 2.</code></pre>
+<pre class="r"><code>predictTr &lt;- predict(modelTr, mtesting)
+confusionMatrix(mtesting$classe, predictTr)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2231    1    0    0    0
+##          B   11 1505    2    0    0
+##          C    0    7 1359    2    0
+##          D    0    0   26 1259    1
+##          E    0    0    0    4 1438
+## 
+## Overall Statistics
+##                                          
+##                Accuracy : 0.9931         
+##                  95% CI : (0.991, 0.9948)
+##     No Information Rate : 0.2858         
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16      
+##                                          
+##                   Kappa : 0.9913         
+##  Mcnemar's Test P-Value : NA             
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.9951   0.9947   0.9798   0.9953   0.9993
+## Specificity            0.9998   0.9979   0.9986   0.9959   0.9994
+## Pos Pred Value         0.9996   0.9914   0.9934   0.9790   0.9972
+## Neg Pred Value         0.9980   0.9987   0.9957   0.9991   0.9998
+## Prevalence             0.2858   0.1928   0.1768   0.1612   0.1834
+## Detection Rate         0.2843   0.1918   0.1732   0.1605   0.1833
+## Detection Prevalence   0.2845   0.1935   0.1744   0.1639   0.1838
+## Balanced Accuracy      0.9975   0.9963   0.9892   0.9956   0.9993</code></pre>
+<p>As we can see, the accuracy for this model is around 99%, very good and precise for making predictions.</p>
+</div>
+<div id="general-boosted-regression-model" class="section level3">
+<h3>General Boosted Regression model</h3>
+<p>Now we are going to train a General Boosted Regression (GBM) model (just to try another model). Same as previous model, we are using a 5 fold cross validation to prevent overfitting.</p>
 <pre class="r"><code>mcontrolB &lt;- trainControl(method=&quot;cv&quot;, 5)
 
 modelB &lt;- train(classe ~ ., data=mtraining,
@@ -228,29 +382,29 @@ modelB</code></pre>
 ## 
 ## No pre-processing
 ## Resampling: Cross-Validated (5 fold) 
-## Summary of sample sizes: 9421, 9420, 9420, 9423, 9420 
+## Summary of sample sizes: 9421, 9420, 9420, 9420, 9423 
 ## Resampling results across tuning parameters:
 ## 
 ##   interaction.depth  n.trees  Accuracy   Kappa      Accuracy SD
-##   1                   50      0.7536511  0.6877715  0.007486244
-##   1                  100      0.8210750  0.7734959  0.007085070
-##   1                  150      0.8532583  0.8142798  0.009616264
-##   2                   50      0.8532602  0.8139621  0.004622916
-##   2                  100      0.9042100  0.8787732  0.005057703
-##   2                  150      0.9314688  0.9132942  0.005925466
-##   3                   50      0.8933404  0.8649831  0.005893832
-##   3                  100      0.9389422  0.9227441  0.005049177
-##   3                  150      0.9598318  0.9491820  0.005179886
+##   1                   50      0.7573015  0.6923355  0.006872569
+##   1                  100      0.8210748  0.7734666  0.008183113
+##   1                  150      0.8551283  0.8166083  0.005537177
+##   2                   50      0.8525792  0.8131140  0.008817276
+##   2                  100      0.9043815  0.8789695  0.007360350
+##   2                  150      0.9301121  0.9115677  0.006111594
+##   3                   50      0.8935964  0.8652617  0.009023300
+##   3                  100      0.9429352  0.9277963  0.003664348
+##   3                  150      0.9607683  0.9503614  0.003061113
 ##   Kappa SD   
-##   0.009427674
-##   0.008878531
-##   0.012153161
-##   0.005751284
-##   0.006409099
-##   0.007476116
-##   0.007485207
-##   0.006383348
-##   0.006553539
+##   0.008726828
+##   0.010385669
+##   0.006931436
+##   0.011277690
+##   0.009339655
+##   0.007750721
+##   0.011523116
+##   0.004649092
+##   0.003864404
 ## 
 ## Tuning parameter 'shrinkage' was held constant at a value of 0.1
 ## 
@@ -259,21 +413,45 @@ modelB</code></pre>
 ## The final values used for the model were n.trees = 150,
 ##  interaction.depth = 3, shrinkage = 0.1 and n.minobsinnode = 10.</code></pre>
 <pre class="r"><code>predictB &lt;- predict(modelB, mtesting)
-c2 &lt;- confusionMatrix(mtesting$classe, predictB)
-
-accuracyB &lt;- postResample(predictB, mtesting$classe)
-accuracyB</code></pre>
-<pre><code>##  Accuracy     Kappa 
-## 0.9606169 0.9501762</code></pre>
-<p>The accuracy of this model is 96.0%, it is still a good model for this dataset.</p>
+confusionMatrix(mtesting$classe, predictB)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2199   15    6    9    3
+##          B   46 1434   37    1    0
+##          C    0   41 1305   19    3
+##          D    0    7   37 1236    6
+##          E    2   22   12   24 1382
+## 
+## Overall Statistics
+##                                           
+##                Accuracy : 0.963           
+##                  95% CI : (0.9586, 0.9671)
+##     No Information Rate : 0.2864          
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
+##                                           
+##                   Kappa : 0.9532          
+##  Mcnemar's Test P-Value : 5.893e-13       
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.9786   0.9440   0.9341   0.9589   0.9914
+## Specificity            0.9941   0.9867   0.9902   0.9924   0.9907
+## Pos Pred Value         0.9852   0.9447   0.9539   0.9611   0.9584
+## Neg Pred Value         0.9914   0.9866   0.9858   0.9919   0.9981
+## Prevalence             0.2864   0.1936   0.1781   0.1643   0.1777
+## Detection Rate         0.2803   0.1828   0.1663   0.1575   0.1761
+## Detection Prevalence   0.2845   0.1935   0.1744   0.1639   0.1838
+## Balanced Accuracy      0.9864   0.9654   0.9622   0.9756   0.9910</code></pre>
+<p>The accuracy of this model is 96%, which is very good for a prediction model, but not as Random Forest (in this assignment).</p>
 </div>
 </div>
 <div id="quiz-answers" class="section level2">
 <h2>Quiz answers</h2>
 <p>Predictions for the given testing dataset, using the Random Forest model.</p>
-<pre class="r"><code>answers &lt;- predict(modelTr, testing, predict.all=TRUE)
-a &lt;- cbind(&quot;Question&quot;=c(1:20),&quot;Answer&quot;=as.character(answers))
-as.data.frame(a)</code></pre>
+<pre class="r"><code>answers &lt;- predict(modelTr, testing, predict.all=TRUE)</code></pre>
 <pre><code>##    Question Answer
 ## 1         1      B
 ## 2         2      A
